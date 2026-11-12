@@ -173,7 +173,7 @@ $('apply').onclick=()=>{
 $('applyShader').onclick=()=>{
  const m=getMat();if(!m)return;const mode=$('shader').value;m.extensions=m.extensions||{};
  if(mode==='unlit'){m.extensions.KHR_materials_unlit={};addExtUsed('KHR_materials_unlit');delete m.extensions.VRMC_materials_mtoon;}
- else if(mode==='standard'){delete m.extensions.KHR_materials_unlit;delete m.extensions.VRMC_materials_mtoon;}
+ else if(mode==='standard'){delete m.extensions.KHR_materials_unlit;delete m.extensions.VRMC_materials_mtoon;if(detectVersion(glbState.json)==='0.x'){const prop=glbState.json.extensions?.VRM?.materialProperties?.[selected];if(prop)prop.shader='Standard';}}
  else if(mode==='mtoon'){
   if(detectVersion(glbState.json)==='1.0'){m.extensions.VRMC_materials_mtoon={specVersion:'1.0',shadeColorFactor:[.5,.5,.5],shadingShiftFactor:0,shadingToonyFactor:.9,giEqualizationFactor:.9,outlineWidthMode:'none'};addExtUsed('VRMC_materials_mtoon');}
   else{
