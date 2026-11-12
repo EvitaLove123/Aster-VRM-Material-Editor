@@ -167,7 +167,7 @@ $('textureFile').addEventListener('change',async e=>{const f=e.target.files?.[0]
 $('apply').onclick=()=>{
  const m=getMat();if(!m)return;const p=m.pbrMetallicRoughness||(m.pbrMetallicRoughness={});const c=hexToFactor($('color').value);p.baseColorFactor=[...c,Number($('alpha').value)];
  m.alphaMode=$('alphaMode').value;m.doubleSided=$('doubleSided').checked;if(m.alphaMode==='MASK')m.alphaCutoff=Math.max(0,Math.min(1,Number($('cutoff').value)||.5));else delete m.alphaCutoff;
- if(detectVersion(glbState.json)==='1.0'&&m.extensions?.VRMC_materials_mtoon){const ext=m.extensions.VRMC_materials_mtoon;ext.shadeColorFactor=hexToFactor($('shadeColor').value);ext.shadingShiftFactor=Number($('shift').value);ext.shadingToonyFactor=Number($('toony').value);}
+ if(detectVersion(glbState.json)==='1.0'&&m.extensions?.VRMC_materials_mtoon){const ext=m.extensions.VRMC_materials_mtoon;ext.shadeColorFactor=hexToFactor($('shadeColor').value);ext.shadingShiftFactor=Number($('shift').value);ext.shadingToonyFactor=Number($('toony').value);}else if(detectVersion(glbState.json)==='0.x'){const prop=glbState.json.extensions?.VRM?.materialProperties?.[selected];if(prop?.shader==='VRM/MToon'){prop.vectorProperties=prop.vectorProperties||{};prop.floatProperties=prop.floatProperties||{};prop.vectorProperties._Color=[...c,Number($('alpha').value)];prop.vectorProperties._ShadeColor=[...hexToFactor($('shadeColor').value),1];prop.floatProperties._ShadeShift=Number($('shift').value);prop.floatProperties._ShadeToony=Number($('toony').value);}}
  syncPreview();setStatus('Material changes applied. Export when ready.','ok');
 };
 $('applyShader').onclick=()=>{
