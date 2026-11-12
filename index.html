@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#f7f9fc">
+<title>Aster VRM Material Editor</title>
+<style>
+:root{color-scheme:light;--bg:#f5f7fb;--panel:#fff;--line:#e4e9f1;--ink:#202938;--muted:#718096;--blue:#5578d9;--blue2:#edf2ff;--danger:#c94b58}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:18px 20px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:5}
+.brand{font-size:18px;font-weight:800;letter-spacing:-.4px}.brand span{color:var(--blue)}.sub{color:var(--muted);font-size:12px}
+main{max-width:1180px;margin:18px auto;padding:0 14px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 3px 14px #24334d08}
+.panel h2{font-size:14px;margin:0;padding:14px 16px;border-bottom:1px solid var(--line)}
+.viewer{height:490px;position:relative;background:linear-gradient(145deg,#f8faff,#edf2fa)}canvas{display:block;width:100%;height:100%}
+.drop{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:25px;color:var(--muted);pointer-events:none}.drop strong{display:block;color:var(--ink);font-size:16px;margin-bottom:6px}
+.viewer.loaded .drop{display:none}.toolbar{display:flex;gap:8px;flex-wrap:wrap;padding:12px;border-top:1px solid var(--line)}
+button,.filebtn{border:0;border-radius:10px;padding:10px 13px;background:var(--blue);color:#fff;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+button.secondary,.filebtn.secondary{background:var(--blue2);color:#3656b0}button.ghost{background:#f1f3f7;color:#445064}button.danger{background:#fff0f1;color:var(--danger)}button:disabled{opacity:.45;cursor:not-allowed}
+.filebtn input{display:none}.right{display:flex;flex-direction:column;gap:14px}.section{padding:14px 16px}.row{display:flex;align-items:center;gap:10px;margin:10px 0}.row label{flex:1;color:#4c596c;font-size:13px}.row input[type=color]{width:42px;height:36px;padding:2px;border:1px solid var(--line);border-radius:8px;background:#fff}.row input[type=text],.row input[type=number],select{width:130px;max-width:48%;border:1px solid var(--line);border-radius:8px;padding:9px;background:#fff;color:var(--ink);font:inherit}.row input[type=range]{width:130px;max-width:48%;accent-color:var(--blue)}.row select{width:150px}.row input[type=checkbox]{width:18px;height:18px;accent-color:var(--blue)}
+.status{padding:10px 13px;border-radius:10px;background:#f3f6fb;color:#5d6b80;font-size:12px;margin:12px 0}.status.error{background:#fff0f1;color:var(--danger)}.status.ok{background:#eef9f2;color:#267a49}
+.material-list{display:flex;flex-wrap:wrap;gap:7px}.mat-chip{padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#536176;font-size:12px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis}.mat-chip.active{background:var(--blue2);border-color:#aebff5;color:#3456b4;font-weight:700}
+.small{font-size:11px;color:var(--muted)}.section-title{font-weight:800;margin-bottom:8px}.actions{display:flex;gap:8px;flex-wrap:wrap}.footer{max-width:1180px;margin:0 auto 24px;padding:0 14px;color:var(--muted);font-size:11px}
+@media(max-width:820px){main{grid-template-columns:1fr;margin-top:12px}.viewer{height:390px}header{padding:14px}.brand{font-size:16px}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/","@pixiv/three-vrm":"https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.min.js"}}
+</script>
+</head>
+<body>
+<header><div><div class="brand">✦ Aster <span>VRM Material Editor</span></div><div class="sub">Browser-based · VRM 0.x / 1.0 · Android friendly</div></div><div class="small">v0.1 · Preview build</div></header>
+<main>
+<section class="panel">
+<h2>Model Preview</h2>
+<div class="viewer" id="viewer"><canvas id="view"></canvas><div class="drop"><div><strong>Open a VRM model</strong>Choose a .vrm file to preview and edit materials<br><span class="small">Your model stays in this browser; it is not uploaded.</span></div></div></div>
+<div class="toolbar"><label class="filebtn"><input id="modelFile" type="file" accept=".vrm,model/gltf-binary">Open VRM</label><button id="resetView" class="secondary" disabled>Reset view</button><button id="export" disabled>Export VRM</button></div>
+</section>
+<div class="right">
+<section class="panel"><h2>Materials</h2><div class="section"><div id="materials" class="material-list"><span class="small">Load a model to see its materials.</span></div><div id="status" class="status">Ready. Select a VRM file to begin.</div></div></section>
+<section class="panel"><h2>Material Editor</h2><div class="section">
+<div class="section-title">Shader / Material Type</div>
+<div class="row"><label>Material mode</label><select id="shader"><option value="standard">Standard (PBR)</option><option value="unlit">Unlit · KHR_materials_unlit</option><option value="mtoon">MToon</option></select></div>
+<div class="actions"><button id="applyShader" class="secondary" disabled>Apply material mode</button></div>
+<div class="small">MToon conversion writes the VRM 1.0 material extension or VRM 0.x materialProperties. It does not add fake UniVRM metadata.</div>
+<hr style="border:0;border-top:1px solid var(--line);margin:15px 0">
+<div class="section-title">Base Color</div>
+<div class="row"><label>Color</label><input id="color" type="color" value="#ffffff"><input id="hex" type="text" value="FFFFFF" maxlength="7" aria-label="HEX color"></div>
+<div class="row"><label>Alpha</label><input id="alpha" type="range" min="0" max="1" step=".01" value="1"><span id="alphaVal" class="small">1.00</span></div>
+<div class="row"><label>Texture</label><span id="textureName" class="small">No texture</span></div>
+<div class="actions"><label class="filebtn secondary">Add / Replace Texture<input id="textureFile" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="removeTexture" class="danger" disabled>Remove texture</button></div>
+<hr style="border:0;border-top:1px solid var(--line);margin:15px 0">
+<div class="section-title">Surface</div>
+<div class="row"><label>Alpha mode</label><select id="alphaMode"><option>OPAQUE</option><option>MASK</option><option>BLEND</option></select></div>
+<div class="row" id="cutoffRow"><label>Alpha cutoff</label><input id="cutoff" type="number" min="0" max="1" step=".01" value=".5"></div>
+<div class="row"><label>Double-sided</label><input id="doubleSided" type="checkbox"></div>
+<hr style="border:0;border-top:1px solid var(--line);margin:15px 0">
+<div class="section-title">MToon Shading · VRM 1.0</div>
+<div class="row"><label>Shade color</label><input id="shadeColor" type="color" value="#808080"></div>
+<div class="row"><label>Shading shift</label><input id="shift" type="range" min="-1" max="1" step=".01" value="0"><span id="shiftVal" class="small">0.00</span></div>
+<div class="row"><label>Shading toony</label><input id="toony" type="range" min="0" max="1" step=".01" value=".9"><span id="toonyVal" class="small">0.90</span></div>
+<div class="actions"><button id="apply" disabled>Apply changes</button></div>
+</div></section>
+</div>
+</main>
+<div class="footer">Aster Workshop · Local browser editing. Export preserves the original GLB structure and existing VRM extensions where possible. Always test exported files in your target VRM app.</div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { VRMLoaderPlugin, MToonMaterialLoaderPlugin } from '@pixiv/three-vrm';
+
+const $ = (id) => document.getElementById(id);
+const canvas = $('view');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
+renderer.setSize(canvas.clientWidth || 640, canvas.clientHeight || 480, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf1f5fb);
+const camera = new THREE.PerspectiveCamera(30, 1, .1, 100);
+camera.position.set(0,1.35,3.8);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0,1,0); controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff,0x9aa8bd,2));
+const key = new THREE.DirectionalLight(0xffffff,2.2); key.position.set(1,2,3); scene.add(key);
+let currentVrm=null, currentGltf=null, currentFileName='model.vrm', glbState=null, materials=[], selected=0, materialDeps=[];
+const clock = new THREE.Clock();
+function resize(){const w=canvas.clientWidth||640,h=canvas.clientHeight||480;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(canvas.parentElement);
+function tick(){requestAnimationFrame(tick);controls.update();if(currentVrm)currentVrm.update(clock.getDelta());renderer.render(scene,camera)}tick();
+
+function setStatus(message,type=''){ $('status').textContent=message; $('status').className='status '+type; }
+function parseGlb(buffer){
+ const dv=new DataView(buffer); if(dv.getUint32(0,true)!==0x46546c67)throw Error('This file is not a valid GLB.');
+ let off=12,json=null,bin=new Uint8Array(0);
+ while(off<buffer.byteLength){const len=dv.getUint32(off,true),type=dv.getUint32(off+4,true);off+=8;const chunk=new Uint8Array(buffer,off,len);if(type===0x4e4f534a)json=JSON.parse(new TextDecoder().decode(chunk).replace(/\0+|\s+$/g,''));if(type===0x004e4942)bin=chunk.slice();off+=len;}
+ if(!json)throw Error('GLB JSON chunk is missing.');
+ return {json,bin};
+}
+function buildGlb(state){
+ const jsonBytes=new TextEncoder().encode(JSON.stringify(state.json));const jsonPad=(4-jsonBytes.length%4)%4;
+ const binPad=(4-state.bin.length%4)%4;const jsonChunk=new Uint8Array(jsonBytes.length+jsonPad);jsonChunk.fill(0x20);jsonChunk.set(jsonBytes);
+ const binChunk=new Uint8Array(state.bin.length+binPad);binChunk.set(state.bin);
+ const total=12+8+jsonChunk.length+(binChunk.length?8+binChunk.length:0);const out=new ArrayBuffer(total);const dv=new DataView(out);let p=0;
+ dv.setUint32(p,0x46546c67,true);p+=4;dv.setUint32(p,2,true);p+=4;dv.setUint32(p,total,true);p+=4;
+ dv.setUint32(p,jsonChunk.length,true);p+=4;dv.setUint32(p,0x4e4f534a,true);p+=4;new Uint8Array(out,p,jsonChunk.length).set(jsonChunk);p+=jsonChunk.length;
+ if(binChunk.length){dv.setUint32(p,binChunk.length,true);p+=4;dv.setUint32(p,0x004e4942,true);p+=4;new Uint8Array(out,p,binChunk.length).set(binChunk);}
+ return out;
+}
+function detectVersion(j){return j.extensions?.VRMC_vrm?'1.0':j.extensions?.VRM?'0.x':'Unknown';}
+function getMat(){return glbState?.json.materials?.[selected];}
+function getTextureIndex(m){return m?.pbrMetallicRoughness?.baseColorTexture?.index;}
+function renderMaterialButtons(){
+ const root=$('materials');root.innerHTML='';
+ materials.forEach((m,i)=>{const b=document.createElement('button');b.className='mat-chip'+(i===selected?' active':'');b.textContent=(i+1)+'. '+(m.name||'Material '+(i+1));b.onclick=()=>{selected=i;renderMaterialButtons();loadControls();};root.appendChild(b);});
+}
+function hexFromFactor(f){return '#'+(f||[1,1,1]).slice(0,3).map(v=>Math.round(Math.max(0,Math.min(1,v))*255).toString(16).padStart(2,'0')).join('');}
+function hexToFactor(hex){const n=hex.replace('#','');return [0,2,4].map(i=>parseInt(n.slice(i,i+2),16)/255);}
+function loadControls(){
+ const m=getMat();if(!m)return;
+ const p=m.pbrMetallicRoughness||(m.pbrMetallicRoughness={});
+ const c=hexFromFactor(p.baseColorFactor);$('color').value=c;$('hex').value=c.slice(1).toUpperCase();$('alpha').value=p.baseColorFactor?.[3]??1;$('alphaVal').textContent=Number($('alpha').value).toFixed(2);
+ $('alphaMode').value=m.alphaMode||'OPAQUE';$('cutoff').value=m.alphaCutoff??.5;$('doubleSided').checked=!!m.doubleSided;
+ const ti=getTextureIndex(m);$('textureName').textContent=Number.isInteger(ti)?(glbState.json.images?.[glbState.json.textures?.[ti]?.source]?.name||'Texture '+(ti+1)):'No texture';$('removeTexture').disabled=!Number.isInteger(ti);
+ const ext=m.extensions?.VRMC_materials_mtoon||{};$('shadeColor').value=hexFromFactor(ext.shadeColorFactor||[.5,.5,.5]);$('shift').value=ext.shadingShiftFactor??0;$('toony').value=ext.shadingToonyFactor??.9;$('shiftVal').textContent=Number($('shift').value).toFixed(2);$('toonyVal').textContent=Number($('toony').value).toFixed(2);
+ $('shader').value=m.extensions?.VRMC_materials_mtoon?'mtoon':m.extensions?.KHR_materials_unlit?'unlit':'standard';
+}
+function syncPreview(){
+ if(!materialDeps[selected])return;const mat=materialDeps[selected],m=getMat(),p=m.pbrMetallicRoughness||{};
+ if(mat.color&&p.baseColorFactor)mat.color.setRGB(...p.baseColorFactor.slice(0,3));
+ if('opacity'in mat)mat.opacity=p.baseColorFactor?.[3]??1;
+ mat.transparent=m.alphaMode==='BLEND';mat.alphaTest=m.alphaMode==='MASK'?(m.alphaCutoff??.5):0;mat.side=m.doubleSided?THREE.DoubleSide:THREE.FrontSide;mat.needsUpdate=true;
+}
+function addExtUsed(name){glbState.json.extensionsUsed=glbState.json.extensionsUsed||[];if(!glbState.json.extensionsUsed.includes(name))glbState.json.extensionsUsed.push(name);}
+async function refreshPreview(){
+ const blob=new Blob([buildGlb(glbState)],{type:'model/gltf-binary'});const url=URL.createObjectURL(blob);
+ const loader=new GLTFLoader();loader.register(parser=>new VRMLoaderPlugin(parser,{mtoonMaterialPlugin:new MToonMaterialLoaderPlugin(parser)}));
+ try{
+  const gltf=await loader.loadAsync(url);if(currentVrm)scene.remove(currentVrm.scene);else if(currentGltf)scene.remove(currentGltf.scene);
+  currentGltf=gltf;currentVrm=gltf.userData.vrm||null;scene.add(gltf.scene);materialDeps=await gltf.parser.getDependencies('material');
+  $('viewer').classList.add('loaded');$('export').disabled=false;$('apply').disabled=false;$('applyShader').disabled=false;$('resetView').disabled=false;
+  const box=new THREE.Box3().setFromObject(gltf.scene);const size=box.getSize(new THREE.Vector3());const center=box.getCenter(new THREE.Vector3());controls.target.copy(center);const max=Math.max(size.x,size.y,size.z)||2;camera.position.set(center.x,center.y+max*.12,center.z+max*2.2);camera.near=max/100;camera.far=max*100;camera.updateProjectionMatrix();controls.update();
+  renderMaterialButtons();loadControls();syncPreview();URL.revokeObjectURL(url);
+ }catch(e){URL.revokeObjectURL(url);throw e;}
+}
+$('modelFile').addEventListener('change',async e=>{
+ const f=e.target.files?.[0];if(!f)return;setStatus('Loading model…');
+ try{const state=parseGlb(await f.arrayBuffer());const version=detectVersion(state.json);if(version==='Unknown')throw Error('No VRM 0.x or VRM 1.0 extension was found.');glbState=state;materials=state.json.materials||[];selected=0;currentFileName=f.name.replace(/\.vrm$/i,'')+'_edited.vrm';await refreshPreview();setStatus('Loaded '+f.name+' · VRM '+version+' · '+materials.length+' materials','ok');}
+ catch(err){console.error(err);setStatus(err.message||'Could not load this VRM.','error');}
+});
+$('color').addEventListener('input',()=>{$('hex').value=$('color').value.slice(1).toUpperCase();});
+$('hex').addEventListener('change',()=>{let h=$('hex').value.trim().replace('#','');if(/^[0-9a-fA-F]{6}$/.test(h))$('color').value='#'+h;else $('hex').value=$('color').value.slice(1).toUpperCase();});
+$('alpha').addEventListener('input',()=>{$('alphaVal').textContent=Number($('alpha').value).toFixed(2)});
+$('shift').addEventListener('input',()=>{$('shiftVal').textContent=Number($('shift').value).toFixed(2)});
+$('toony').addEventListener('input',()=>{$('toonyVal').textContent=Number($('toony').value).toFixed(2)});
+$('removeTexture').onclick=()=>{const m=getMat();if(!m)return;if(m.pbrMetallicRoughness)delete m.pbrMetallicRoughness.baseColorTexture;loadControls();setStatus('Base color texture reference removed. Original image data is kept in the file.','ok');};
+async function appendImage(file){
+ const bytes=new Uint8Array(await file.arrayBuffer());const state=glbState;const pad=(4-state.bin.length%4)%4;const offset=state.bin.length;const combined=new Uint8Array(offset+pad+bytes.length);combined.set(state.bin);combined.set(bytes,offset+pad);state.bin=combined;
+ state.json.bufferViews=state.json.bufferViews||[];const view=state.json.bufferViews.length;state.json.bufferViews.push({buffer:0,byteOffset:offset+pad,byteLength:bytes.length});
+ state.json.images=state.json.images||[];const image=state.json.images.length;state.json.images.push({name:file.name,bufferView:view,mimeType:file.type||'image/png'});
+ state.json.samplers=state.json.samplers||[];let sampler=state.json.samplers.findIndex(s=>s.magFilter===9729&&s.minFilter===9987&&s.wrapS===10497&&s.wrapT===10497);if(sampler<0){sampler=state.json.samplers.length;state.json.samplers.push({magFilter:9729,minFilter:9987,wrapS:10497,wrapT:10497});}
+ state.json.textures=state.json.textures||[];const tex=state.json.textures.length;state.json.textures.push({sampler,source:image});
+ state.json.buffers[0].byteLength=state.bin.length;return tex;
+}
+$('textureFile').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f||!getMat())return;try{if(!['image/png','image/jpeg','image/webp'].includes(f.type))throw Error('Use PNG, JPG or WebP.');const idx=await appendImage(f);const m=getMat();m.pbrMetallicRoughness=m.pbrMetallicRoughness||{};m.pbrMetallicRoughness.baseColorTexture={index:idx,texCoord:0};await refreshPreview();setStatus('Texture added to the GLB and assigned to the selected material.','ok');}catch(err){setStatus(err.message,'error');}e.target.value='';});
+$('apply').onclick=()=>{
+ const m=getMat();if(!m)return;const p=m.pbrMetallicRoughness||(m.pbrMetallicRoughness={});const c=hexToFactor($('color').value);p.baseColorFactor=[...c,Number($('alpha').value)];
+ m.alphaMode=$('alphaMode').value;m.doubleSided=$('doubleSided').checked;if(m.alphaMode==='MASK')m.alphaCutoff=Math.max(0,Math.min(1,Number($('cutoff').value)||.5));else delete m.alphaCutoff;
+ if(detectVersion(glbState.json)==='1.0'&&m.extensions?.VRMC_materials_mtoon){const ext=m.extensions.VRMC_materials_mtoon;ext.shadeColorFactor=hexToFactor($('shadeColor').value);ext.shadingShiftFactor=Number($('shift').value);ext.shadingToonyFactor=Number($('toony').value);}
+ syncPreview();setStatus('Material changes applied. Export when ready.','ok');
+};
+$('applyShader').onclick=()=>{
+ const m=getMat();if(!m)return;const mode=$('shader').value;m.extensions=m.extensions||{};
+ if(mode==='unlit'){m.extensions.KHR_materials_unlit={};addExtUsed('KHR_materials_unlit');delete m.extensions.VRMC_materials_mtoon;}
+ else if(mode==='standard'){delete m.extensions.KHR_materials_unlit;delete m.extensions.VRMC_materials_mtoon;}
+ else if(mode==='mtoon'){
+  if(detectVersion(glbState.json)==='1.0'){m.extensions.VRMC_materials_mtoon={specVersion:'1.0',shadeColorFactor:[.5,.5,.5],shadingShiftFactor:0,shadingToonyFactor:.9,giEqualizationFactor:.9,outlineWidthMode:'none'};addExtUsed('VRMC_materials_mtoon');}
+  else{
+   const j=glbState.json;const vrm=j.extensions?.VRM;if(!vrm)throw Error('VRM 0.x extension is missing.');
+   const list=vrm.materialProperties||(vrm.materialProperties=[]);while(list.length<materials.length)list.push({name:materials[list.length].name||'Material '+(list.length+1),shader:'VRM/MToon',renderQueue:2000,floatProperties:{_ShadeToony:.9,_ShadeShift:0},vectorProperties:{_Color:[1,1,1,1],_ShadeColor:[.5,.5,.5,1]},textureProperties:{}});
+   const prop=list[selected];prop.shader='VRM/MToon';prop.renderQueue=prop.renderQueue||2000;prop.floatProperties=prop.floatProperties||{};prop.vectorProperties=prop.vectorProperties||{};prop.textureProperties=prop.textureProperties||{};prop.floatProperties._ShadeToony=.9;prop.floatProperties._ShadeShift=0;prop.vectorProperties._Color=[...hexToFactor($('color').value),Number($('alpha').value)];prop.vectorProperties._ShadeColor=[...hexToFactor($('shadeColor').value),1];
+  }
+  delete m.extensions.KHR_materials_unlit;
+ }
+ if(!Object.keys(m.extensions).length)delete m.extensions;
+ refreshPreview().then(()=>setStatus('Material mode updated.','ok')).catch(e=>setStatus('Preview refresh failed: '+e.message,'error'));
+};
+$('export').onclick=()=>{try{const blob=new Blob([buildGlb(glbState)],{type:'model/gltf-binary'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=currentFileName;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);setStatus('Exported '+currentFileName+'. Test it in your target app.','ok');}catch(e){setStatus('Export failed: '+e.message,'error');}};
+$('resetView').onclick=()=>{if(!currentGltf)return;const box=new THREE.Box3().setFromObject(currentGltf.scene),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),max=Math.max(size.x,size.y,size.z)||2;controls.target.copy(center);camera.position.set(center.x,center.y+max*.12,center.z+max*2.2);controls.update();};
+</script>
+</body>
+</html>
