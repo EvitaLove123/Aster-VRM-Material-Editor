@@ -29,7 +29,7 @@ button.secondary,.filebtn.secondary{background:var(--blue2);color:#3656b0}button
 </script>
 </head>
 <body>
-<header><div><div class="brand">✦ Aster <span>VRM Material Editor</span></div><div class="sub">Browser-based · VRM 0.x / 1.0 · Android friendly</div></div><div class="small">v0.1 · Preview build</div></header>
+<header><div><div class="brand">✦ Aster <span>VRM Material Editor</span></div><div class="sub">Browser-based · VRM 0.x only · Android friendly</div></div><div class="small">v0.1 · Preview build</div></header>
 <main>
 <section class="panel">
 <h2>Model Preview</h2>
@@ -41,8 +41,8 @@ button.secondary,.filebtn.secondary{background:var(--blue2);color:#3656b0}button
 <section class="panel"><h2>Material Editor</h2><div class="section">
 <div class="section-title">Shader / Material Type</div>
 <div class="row"><label>Material mode</label><select id="shader"><option value="standard">Standard (PBR)</option><option value="unlit">Unlit · KHR_materials_unlit</option><option value="mtoon">MToon</option></select></div>
-<div class="actions"><button id="applyShader" class="secondary" disabled>Apply material mode</button></div>
-<div class="small">MToon conversion writes the VRM 1.0 material extension or VRM 0.x materialProperties. It does not add fake UniVRM metadata.</div>
+<div class="actions"><button id="applyShader" class="secondary" disabled>Apply to selected</button><button id="convertAllUnlit" disabled>Convert ALL Mesh Materials → Unlit</button></div><div class="small" id="convertSummary">Converts every material referenced by every mesh primitive, including multiple material slots.</div>
+<div class="small">VRM 0.x only. Unlit conversion updates glTF and VRM 0.x materialProperties without adding fake UniVRM metadata.</div>
 <hr style="border:0;border-top:1px solid var(--line);margin:15px 0">
 <div class="section-title">Base Color</div>
 <div class="row"><label>Color</label><input id="color" type="color" value="#ffffff"><input id="hex" type="text" value="FFFFFF" maxlength="7" aria-label="HEX color"></div>
@@ -55,7 +55,7 @@ button.secondary,.filebtn.secondary{background:var(--blue2);color:#3656b0}button
 <div class="row" id="cutoffRow"><label>Alpha cutoff</label><input id="cutoff" type="number" min="0" max="1" step=".01" value=".5"></div>
 <div class="row"><label>Double-sided</label><input id="doubleSided" type="checkbox"></div>
 <hr style="border:0;border-top:1px solid var(--line);margin:15px 0">
-<div class="section-title">MToon Shading · VRM 1.0</div>
+<div class="section-title">MToon Shading · VRM 0.x</div>
 <div class="row"><label>Shade color</label><input id="shadeColor" type="color" value="#808080"></div>
 <div class="row"><label>Shading shift</label><input id="shift" type="range" min="-1" max="1" step=".01" value="0"><span id="shiftVal" class="small">0.00</span></div>
 <div class="row"><label>Shading toony</label><input id="toony" type="range" min="0" max="1" step=".01" value=".9"><span id="toonyVal" class="small">0.90</span></div>
@@ -139,14 +139,14 @@ async function refreshPreview(){
  try{
   const gltf=await loader.loadAsync(url);if(currentVrm)scene.remove(currentVrm.scene);else if(currentGltf)scene.remove(currentGltf.scene);
   currentGltf=gltf;currentVrm=gltf.userData.vrm||null;scene.add(gltf.scene);materialDeps=await gltf.parser.getDependencies('material');
-  $('viewer').classList.add('loaded');$('export').disabled=false;$('apply').disabled=false;$('applyShader').disabled=false;$('resetView').disabled=false;
+  $('viewer').classList.add('loaded');$('export').disabled=false;$('apply').disabled=false;$('applyShader').disabled=false;$('convertAllUnlit').disabled=false;$('resetView').disabled=false;
   const box=new THREE.Box3().setFromObject(gltf.scene);const size=box.getSize(new THREE.Vector3());const center=box.getCenter(new THREE.Vector3());controls.target.copy(center);const max=Math.max(size.x,size.y,size.z)||2;camera.position.set(center.x,center.y+max*.12,center.z+max*2.2);camera.near=max/100;camera.far=max*100;camera.updateProjectionMatrix();controls.update();
   renderMaterialButtons();loadControls();syncPreview();URL.revokeObjectURL(url);
  }catch(e){URL.revokeObjectURL(url);throw e;}
 }
 $('modelFile').addEventListener('change',async e=>{
  const f=e.target.files?.[0];if(!f)return;setStatus('Loading model…');
- try{const state=parseGlb(await f.arrayBuffer());const version=detectVersion(state.json);if(version==='Unknown')throw Error('No VRM 0.x or VRM 1.0 extension was found.');glbState=state;materials=state.json.materials||[];selected=0;currentFileName=f.name.replace(/\.vrm$/i,'')+'_edited.vrm';await refreshPreview();setStatus('Loaded '+f.name+' · VRM '+version+' · '+materials.length+' materials','ok');}
+ try{const state=parseGlb(await f.arrayBuffer());const version=detectVersion(state.json);if(version!=='0.x')throw Error('This editor supports VRM 0.x only. VRM 1.0 files are not accepted.');glbState=state;materials=state.json.materials||[];selected=0;currentFileName=f.name.replace(/\.vrm$/i,'')+'_edited.vrm';await refreshPreview();setStatus('Loaded '+f.name+' · VRM '+version+' · '+materials.length+' materials','ok');}
  catch(err){console.error(err);setStatus(err.message||'Could not load this VRM.','error');}
 });
 $('color').addEventListener('input',()=>{$('hex').value=$('color').value.slice(1).toUpperCase();});
@@ -170,13 +170,74 @@ $('apply').onclick=()=>{
  if(detectVersion(glbState.json)==='1.0'&&m.extensions?.VRMC_materials_mtoon){const ext=m.extensions.VRMC_materials_mtoon;ext.shadeColorFactor=hexToFactor($('shadeColor').value);ext.shadingShiftFactor=Number($('shift').value);ext.shadingToonyFactor=Number($('toony').value);}else if(detectVersion(glbState.json)==='0.x'){const prop=glbState.json.extensions?.VRM?.materialProperties?.[selected];if(prop?.shader==='VRM/MToon'){prop.vectorProperties=prop.vectorProperties||{};prop.floatProperties=prop.floatProperties||{};prop.vectorProperties._Color=[...c,Number($('alpha').value)];prop.vectorProperties._ShadeColor=[...hexToFactor($('shadeColor').value),1];prop.floatProperties._ShadeShift=Number($('shift').value);prop.floatProperties._ShadeToony=Number($('toony').value);}}
  syncPreview();setStatus('Material changes applied. Export when ready.','ok');
 };
+function vrm0UnlitShader(material){
+ const alpha=material.alphaMode||'OPAQUE';
+ const hasTexture=Number.isInteger(material.pbrMetallicRoughness?.baseColorTexture?.index);
+ if(alpha==='MASK')return 'VRM/UnlitCutout';
+ if(alpha==='BLEND')return 'VRM/UnlitTransparent';
+ return hasTexture?'VRM/UnlitTexture':'VRM/UnlitColor';
+}
+function ensureVrm0MaterialProperty(index,material){
+ const vrm=glbState.json.extensions?.VRM;
+ if(!vrm)throw Error('VRM 0.x extension is missing.');
+ const list=vrm.materialProperties||(vrm.materialProperties=[]);
+ while(list.length<materials.length){
+  const i=list.length,src=materials[i]||{};
+  list.push({name:src.name||'Material '+(i+1),shader:'VRM/UnlitTexture',renderQueue:2000,floatProperties:{},vectorProperties:{_Color:[1,1,1,1]},textureProperties:{}});
+ }
+ const prop=list[index];
+ prop.name=material.name||prop.name||'Material '+(index+1);
+ prop.shader=vrm0UnlitShader(material);
+ prop.renderQueue=material.alphaMode==='BLEND'?3000:material.alphaMode==='MASK'?2450:2000;
+ prop.floatProperties=prop.floatProperties||{};
+ prop.vectorProperties=prop.vectorProperties||{};
+ prop.textureProperties=prop.textureProperties||{};
+ const p=material.pbrMetallicRoughness||{};
+ prop.vectorProperties._Color=p.baseColorFactor||[1,1,1,1];
+ if(Number.isInteger(p.baseColorTexture?.index))prop.textureProperties._MainTex=p.baseColorTexture.index;
+ else delete prop.textureProperties._MainTex;
+ if(material.alphaMode==='MASK')prop.floatProperties._Cutoff=material.alphaCutoff??.5;
+ else delete prop.floatProperties._Cutoff;
+ return prop;
+}
+function convertAllMeshMaterialsToUnlit(){
+ if(!glbState||detectVersion(glbState.json)!=='0.x')return;
+ const j=glbState.json, used=new Set();
+ for(const mesh of (j.meshes||[])){
+  for(const primitive of (mesh.primitives||[])){
+   if(Number.isInteger(primitive.material))used.add(primitive.material);
+  }
+ }
+ // Also include any material slot not currently referenced, so the model has no mixed shader set.
+ for(let i=0;i<(j.materials||[]).length;i++)used.add(i);
+ if(!used.size){setStatus('No materials were found on this model.','error');return;}
+ j.extensions=j.extensions||{};
+ j.extensionsUsed=j.extensionsUsed||[];
+ if(!j.extensionsUsed.includes('KHR_materials_unlit'))j.extensionsUsed.push('KHR_materials_unlit');
+ for(const i of [...used].sort((a,b)=>a-b)){
+  const m=j.materials[i];if(!m)continue;
+  m.extensions=m.extensions||{};
+  m.extensions.KHR_materials_unlit={};
+  delete m.extensions.VRMC_materials_mtoon;
+  ensureVrm0MaterialProperty(i,m);
+ }
+ const ext=j.extensions.VRM;
+ if(ext&&Array.isArray(ext.materialProperties)){
+  // Keep a VRM 0.x property entry aligned with each glTF material.
+  while(ext.materialProperties.length<j.materials.length)ensureVrm0MaterialProperty(ext.materialProperties.length,j.materials[ext.materialProperties.length]);
+ }
+ refreshPreview().then(()=>{
+  $('shader').value='unlit';
+  setStatus('Converted '+used.size+' material(s) across all mesh primitives to VRM 0.x Unlit. Textures, base colors and alpha settings were preserved.','ok');
+ }).catch(e=>setStatus('Unlit conversion saved in memory, but preview refresh failed: '+e.message,'error'));
+}
+$('convertAllUnlit').onclick=convertAllMeshMaterialsToUnlit;
 $('applyShader').onclick=()=>{
  const m=getMat();if(!m)return;const mode=$('shader').value;m.extensions=m.extensions||{};
- if(mode==='unlit'){m.extensions.KHR_materials_unlit={};addExtUsed('KHR_materials_unlit');delete m.extensions.VRMC_materials_mtoon;}
- else if(mode==='standard'){delete m.extensions.KHR_materials_unlit;delete m.extensions.VRMC_materials_mtoon;if(detectVersion(glbState.json)==='0.x'){const prop=glbState.json.extensions?.VRM?.materialProperties?.[selected];if(prop)prop.shader='Standard';}}
+ if(mode==='unlit'){m.extensions.KHR_materials_unlit={};addExtUsed('KHR_materials_unlit');delete m.extensions.VRMC_materials_mtoon;ensureVrm0MaterialProperty(selected,m);}
+ else if(mode==='standard'){delete m.extensions.KHR_materials_unlit;delete m.extensions.VRMC_materials_mtoon;const prop=glbState.json.extensions?.VRM?.materialProperties?.[selected];if(prop)prop.shader='Standard';}
  else if(mode==='mtoon'){
-  if(detectVersion(glbState.json)==='1.0'){m.extensions.VRMC_materials_mtoon={specVersion:'1.0',shadeColorFactor:[.5,.5,.5],shadingShiftFactor:0,shadingToonyFactor:.9,giEqualizationFactor:.9,outlineWidthMode:'none'};addExtUsed('VRMC_materials_mtoon');}
-  else{
+  {
    const j=glbState.json;const vrm=j.extensions?.VRM;if(!vrm)throw Error('VRM 0.x extension is missing.');
    const list=vrm.materialProperties||(vrm.materialProperties=[]);while(list.length<materials.length)list.push({name:materials[list.length].name||'Material '+(list.length+1),shader:'VRM/MToon',renderQueue:2000,floatProperties:{_ShadeToony:.9,_ShadeShift:0},vectorProperties:{_Color:[1,1,1,1],_ShadeColor:[.5,.5,.5,1]},textureProperties:{}});
    const prop=list[selected];prop.shader='VRM/MToon';prop.renderQueue=prop.renderQueue||2000;prop.floatProperties=prop.floatProperties||{};prop.vectorProperties=prop.vectorProperties||{};prop.textureProperties=prop.textureProperties||{};prop.floatProperties._ShadeToony=.9;prop.floatProperties._ShadeShift=0;prop.vectorProperties._Color=[...hexToFactor($('color').value),Number($('alpha').value)];prop.vectorProperties._ShadeColor=[...hexToFactor($('shadeColor').value),1];
