@@ -34,14 +34,14 @@ button.secondary,.filebtn.secondary{background:var(--blue2);color:#3656b0}button
 <section class="panel">
 <h2>Model Preview</h2>
 <div class="viewer" id="viewer"><canvas id="view"></canvas><div class="drop"><div><strong>Open a VRM model</strong>Choose a .vrm file to preview and edit materials<br><span class="small">Your model stays in this browser; it is not uploaded.</span></div></div></div>
-<div class="toolbar"><label class="filebtn"><input id="modelFile" type="file" accept=".vrm,model/gltf-binary">Open VRM</label><button id="resetView" class="secondary" disabled>Reset view</button><button id="export" disabled>Export VRM</button></div>
+<div class="toolbar"><label class="filebtn"><input id="modelFile" type="file" accept=".vrm,model/gltf-binary">Open VRM</label><button id="convertAllUnlit" disabled>✦ Convert ALL Meshes → Unlit</button><button id="resetView" class="secondary" disabled>Reset view</button><button id="export" disabled>Export VRM</button></div>
 </section>
 <div class="right">
 <section class="panel"><h2>Materials</h2><div class="section"><div id="materials" class="material-list"><span class="small">Load a model to see its materials.</span></div><div id="status" class="status">Ready. Select a VRM file to begin.</div></div></section>
 <section class="panel"><h2>Material Editor</h2><div class="section">
 <div class="section-title">Shader / Material Type</div>
 <div class="row"><label>Material mode</label><select id="shader"><option value="standard">Standard (PBR)</option><option value="unlit">Unlit · KHR_materials_unlit</option><option value="mtoon">MToon</option></select></div>
-<div class="actions"><button id="applyShader" class="secondary" disabled>Apply to selected</button><button id="convertAllUnlit" disabled>Convert ALL Mesh Materials → Unlit</button></div><div class="small" id="convertSummary">Converts every material referenced by every mesh primitive, including multiple material slots.</div>
+<div class="actions"><button id="applyShader" class="secondary" disabled>Apply to selected</button></div><div class="small" id="convertSummary">Use the prominent Convert ALL Meshes → Unlit button below the model preview to convert every mesh material at once.</div>
 <div class="small">VRM 0.x only. Unlit conversion updates glTF and VRM 0.x materialProperties without adding fake UniVRM metadata.</div>
 <hr style="border:0;border-top:1px solid var(--line);margin:15px 0">
 <div class="section-title">Base Color</div>
